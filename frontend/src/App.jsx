@@ -6,7 +6,7 @@ import About from './components/About';
 import Contacts from './components/Contacts';
 import LoginPortal from './components/LoginPortal';
 import { fetchStudents } from './services/fun';
-#import './app.css';
+import './App.css';
 
 export default function App() {
   const [students, setStudents] = useState([]);
