@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { register } from '../services/api';
 
@@ -20,13 +20,8 @@ export default function Register() {
     skills: ''
   });
 
-  useEffect(() => {
-    const originalStyle = window.getComputedStyle(document.body).overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = originalStyle;
-    };
-  }, []);
+  // NOTE: The useEffect with document.body.style.overflow has been REMOVED 
+  // to prevent the Home page from getting stuck.
 
   const showNotification = (message, type = 'success') => {
     setNotification({ message, type });
@@ -35,34 +30,28 @@ export default function Register() {
 
   const validateForm = () => {
     const newErrors = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = "Full name is required";
-    }
-
+    if (!formData.name.trim()) newErrors.name = "Full name is required";
     if (!formData.email.trim()) {
       newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = "Invalid email format";
     }
-
     if (!formData.password || formData.password.length < 6) {
       newErrors.password = "Password must be at least 6 characters";
     }
+    if (!formData.location) newErrors.location = "Please select your city";
 
-    if (!formData.location) {
-      newErrors.location = "Please select your city";
+    if (formData.role === 'pro') {
+      if (!formData.phone.trim()) {
+        newErrors.phone = "Phone number is required for professionals";
+      } else {
+        const digitsOnly = formData.phone.replace(/\D/g, '');
+        if (digitsOnly.length < 9 || digitsOnly.length > 12) {
+          newErrors.phone = "Phone number must be 9-12 digits";
+        }
+      }
+      if (!formData.skills) newErrors.skills = "Please select your trade";
     }
-
-    // Phone validation: required only for professionals
-    if (formData.role === 'pro' && !formData.phone.trim()) {
-      newErrors.phone = "Phone number is required for professionals";
-    }
-
-    if (formData.role === 'pro' && !formData.skills) {
-      newErrors.skills = "Please select your trade";
-    }
-
     return newErrors;
   };
 
@@ -72,38 +61,26 @@ export default function Register() {
     setErrors({});
 
     const validationErrors = validateForm();
-
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       setLoading(false);
       return;
     }
 
-    // Prepare data for backend – skills must be an array for pros
     const dataToSend = {
       ...formData,
       skills: formData.role === 'pro' && formData.skills ? [formData.skills] : []
     };
 
-    console.log('Sending registration data:', dataToSend);
-
     try {
       await register(dataToSend);
-
-      showNotification("Registration successful! Redirecting to login...", "success");
-
-      setTimeout(() => {
-        navigate('/login');
-      }, 1000);
-
+      showNotification("Registration successful! Redirecting...", "success");
+      setTimeout(() => navigate('/login'), 1500);
     } catch (err) {
       if (err.response?.data?.errors) {
         setErrors(err.response.data.errors);
       } else {
-        showNotification(
-          err.response?.data?.message || "Registration failed. Please try again.",
-          "error"
-        );
+        showNotification(err.response?.data?.message || "Registration failed.", "error");
       }
     } finally {
       setLoading(false);
@@ -115,198 +92,149 @@ export default function Register() {
 
   return (
     <div style={styles.pageContainer}>
-
       {notification && (
-        <div
-          style={{
-            ...styles.notification,
-            backgroundColor:
-              notification.type === 'success' ? '#16a34a' : '#dc2626',
-          }}
-        >
-          <span>{notification.message}</span>
-          <button
-            style={styles.closeBtn}
-            onClick={() => setNotification(null)}
-          >
-            ×
-          </button>
+        <div style={{ ...styles.notification, borderLeftColor: notification.type === 'success' ? '#22c55e' : '#ef4444' }}>
+          <span style={styles.notificationIcon}>{notification.type === 'success' ? '🎉' : '⚠️'}</span>
+          <span style={styles.notificationMessage}>{notification.message}</span>
         </div>
       )}
 
-      <form style={styles.card} onSubmit={handleSubmit}>
-        <header style={styles.header}>
-          <h2 style={styles.title}>Create Account</h2>
-          <p style={styles.subtitle}>Select your city and join the community</p>
-        </header>
+      <div style={styles.card}>
+        <form onSubmit={handleSubmit}>
+          <header style={styles.header}>
+            <h2 style={styles.title}>Create Account</h2>
+          </header>
 
-        <div style={styles.formGrid}>
-
-          {/* Name */}
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Full Name</label>
-            <input
-              type="text"
-              style={{
-                ...styles.input,
-                borderColor: errors.name ? '#dc2626' : '#cbd5e1'
-              }}
-              value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
-            />
-            {errors.name && <span style={styles.errorText}>{errors.name}</span>}
-          </div>
-
-          {/* Email */}
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Email Address</label>
-            <input
-              type="email"
-              style={{
-                ...styles.input,
-                borderColor: errors.email ? '#dc2626' : '#cbd5e1'
-              }}
-              value={formData.email}
-              onChange={(e) =>
-                setFormData({ ...formData, email: e.target.value })
-              }
-            />
-            {errors.email && <span style={styles.errorText}>{errors.email}</span>}
-          </div>
-
-          {/* Location */}
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Location (City)</label>
-            <select
-              style={{
-                ...styles.input,
-                borderColor: errors.location ? '#dc2626' : '#cbd5e1'
-              }}
-              value={formData.location}
-              onChange={(e) =>
-                setFormData({ ...formData, location: e.target.value })
-              }
-            >
-              <option value="">Select your city</option>
-              {locations.map(loc => (
-                <option key={loc} value={loc.toLowerCase()}>{loc}</option>
-              ))}
-            </select>
-            {errors.location && <span style={styles.errorText}>{errors.location}</span>}
-          </div>
-
-          {/* Password */}
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Password</label>
-            <input
-              type="password"
-              style={{
-                ...styles.input,
-                borderColor: errors.password ? '#dc2626' : '#cbd5e1'
-              }}
-              value={formData.password}
-              onChange={(e) =>
-                setFormData({ ...formData, password: e.target.value })
-              }
-            />
-            {errors.password && <span style={styles.errorText}>{errors.password}</span>}
-          </div>
-
-          {/* Phone - Always visible, required only for pros */}
-          <div style={{ ...styles.inputGroup, gridColumn: 'span 3' }}>
-            <label style={styles.label}>
-              Phone Number {formData.role === 'pro' && <span style={{ color: '#dc2626' }}>*</span>}
-            </label>
-            <input
-              type="tel"
-              style={{
-                ...styles.input,
-                borderColor: errors.phone ? '#dc2626' : '#cbd5e1'
-              }}
-              value={formData.phone}
-              onChange={(e) =>
-                setFormData({ ...formData, phone: e.target.value })
-              }
-            />
-            {errors.phone && <span style={styles.errorText}>{errors.phone}</span>}
-          </div>
-
-          {/* Role Toggle */}
-          <div style={{ ...styles.inputGroup, gridColumn: 'span 3' }}>
-            <label style={styles.label}>I am joining as a:</label>
-            <div style={styles.toggleGroup}>
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, role: 'client' })}
-                style={{
-                  ...styles.toggleBtn,
-                  backgroundColor: formData.role === 'client' ? '#1d4ed8' : '#f1f5f9',
-                  color: formData.role === 'client' ? '#fff' : '#475569'
-                }}
-              >
-                Client
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, role: 'pro' })}
-                style={{
-                  ...styles.toggleBtn,
-                  backgroundColor: formData.role === 'pro' ? '#1d4ed8' : '#f1f5f9',
-                  color: formData.role === 'pro' ? '#fff' : '#475569'
-                }}
-              >
-                Professional
-              </button>
+          <div style={styles.formGrid}>
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>FULL NAME</label>
+              <input
+                type="text"
+                placeholder="Enter your full name"
+                style={{ ...styles.input, borderColor: errors.name ? '#dc2626' : '#e0e7ff' }}
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
+              {errors.name && <span style={styles.errorText}>{errors.name}</span>}
             </div>
-          </div>
 
-          {/* Skills - Only for pros */}
-          {formData.role === 'pro' && (
-            <div style={{ ...styles.inputGroup, gridColumn: 'span 3' }}>
-              <label style={styles.label}>Primary Skill / Trade</label>
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>EMAIL ADDRESS</label>
+              <input
+                type="email"
+                placeholder="Enter your email"
+                style={{ ...styles.input, borderColor: errors.email ? '#dc2626' : '#e0e7ff' }}
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              />
+              {errors.email && <span style={styles.errorText}>{errors.email}</span>}
+            </div>
+
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>LOCATION (CITY)</label>
               <select
-                style={{
-                  ...styles.input,
-                  borderColor: errors.skills ? '#dc2626' : '#cbd5e1'
-                }}
-                value={formData.skills}
-                onChange={(e) =>
-                  setFormData({ ...formData, skills: e.target.value })
-                }
+                style={{ ...styles.input, borderColor: errors.location ? '#dc2626' : '#e0e7ff' }}
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
               >
-                <option value="">Select your trade</option>
-                {skillOptions.map(skill => (
-                  <option key={skill} value={skill}>{skill}</option>
+                <option value="">Select your city</option>
+                {locations.map(loc => (
+                  <option key={loc} value={loc.toLowerCase()}>{loc}</option>
                 ))}
               </select>
-              {errors.skills && <span style={styles.errorText}>{errors.skills}</span>}
+              {errors.location && <span style={styles.errorText}>{errors.location}</span>}
             </div>
-          )}
 
-          <div style={{ gridColumn: 'span 3', marginTop: '20px' }}>
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>PASSWORD</label>
+              <input
+                type="password"
+                placeholder="Min. 6 characters"
+                style={{ ...styles.input, borderColor: errors.password ? '#dc2626' : '#e0e7ff' }}
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              />
+              {errors.password && <span style={styles.errorText}>{errors.password}</span>}
+            </div>
+
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>PHONE NUMBER</label>
+              <input
+                type="tel"
+                placeholder="9-12 digits"
+                style={{ ...styles.input, borderColor: errors.phone ? '#dc2626' : '#e0e7ff' }}
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              />
+              {errors.phone && <span style={styles.errorText}>{errors.phone}</span>}
+            </div>
+
+            <div style={styles.inputGroup}></div>
+
+            <div style={styles.fullWidthGroup}>
+              <label style={styles.label}>I AM JOINING AS A:</label>
+              <div style={styles.toggleGroup}>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, role: 'client', skills: '' })}
+                  style={{
+                    ...styles.toggleBtn,
+                    backgroundColor: formData.role === 'client' ? '#1d4ed8' : '#f1f5f9',
+                    color: formData.role === 'client' ? '#fff' : '#1e293b',
+                    border: '1px solid #e0e7ff'
+                  }}
+                >Client</button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, role: 'pro' })}
+                  style={{
+                    ...styles.toggleBtn,
+                    backgroundColor: formData.role === 'pro' ? '#1d4ed8' : '#f1f5f9',
+                    color: formData.role === 'pro' ? '#fff' : '#1e293b',
+                    border: '1px solid #e0e7ff'
+                  }}
+                >Professional</button>
+              </div>
+            </div>
+
+            {formData.role === 'pro' && (
+              <div style={styles.fullWidthGroup}>
+                <label style={styles.label}>PRIMARY SKILL / TRADE</label>
+                <select
+                  style={{ ...styles.input, borderColor: errors.skills ? '#dc2626' : '#e0e7ff' }}
+                  value={formData.skills}
+                  onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
+                >
+                  <option value="">Select your trade</option>
+                  {skillOptions.map(skill => (
+                    <option key={skill} value={skill}>{skill}</option>
+                  ))}
+                </select>
+                {errors.skills && <span style={styles.errorText}>{errors.skills}</span>}
+              </div>
+            )}
+          </div>
+
+          <div style={styles.buttonContainer}>
             <button
               type="submit"
               disabled={loading}
               style={{
                 ...styles.button,
-                backgroundColor: isHovered ? '#108554' : '#1d4ed8'
+                background: isHovered ? '#2563eb' : '#1d4ed8',
+                opacity: loading ? 0.7 : 1,
               }}
               onMouseEnter={() => setIsHovered(true)}
               onMouseLeave={() => setIsHovered(false)}
             >
               {loading ? 'Processing...' : 'Register Now'}
             </button>
-
             <p style={styles.footerText}>
-              Already have an account?{" "}
-              <Link to="/login" style={styles.link}>Login here</Link>
+              Already have an account? <Link to="/login" style={styles.link}>Login here</Link>
             </p>
           </div>
-
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }
@@ -314,110 +242,52 @@ export default function Register() {
 const styles = {
   pageContainer: {
     display: 'flex',
+    flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: '100vh',
-    backgroundColor: '#f8fafc',
-    padding: '20px',
-    boxSizing: 'border-box',
-    position: 'relative'
+    minHeight: '85vh', 
+    padding: '40px 20px',
+    backgroundColor: '#ffffff',
+    backgroundImage: 'radial-gradient(circle at 10px 10px, #e0e7ff 2px, transparent 2px)',
+    backgroundSize: '30px 30px',
   },
   notification: {
-    position: 'absolute',
-    top: '30px',
-    right: '30px',
-    padding: '16px 22px',
-    borderRadius: '14px',
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: '14px',
-    boxShadow: '0 12px 25px rgba(0,0,0,0.15)',
+    position: 'fixed',
+    top: '20px',
+    right: '20px',
+    padding: '14px 18px',
+    borderRadius: '16px',
+    background: '#ffffff',
+    boxShadow: '0 15px 30px rgba(0,0,0,0.1)',
+    borderLeft: '4px solid',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '15px',
-    minWidth: '280px',
+    gap: '12px',
     zIndex: 9999,
   },
-  closeBtn: {
-    background: 'transparent',
-    border: 'none',
-    color: '#ffffff',
-    fontSize: '18px',
-    cursor: 'pointer',
-    fontWeight: '700',
-  },
-  errorText: {
-    color: '#dc2626',
-    fontSize: '12px',
-    marginTop: '6px',
-    fontWeight: '500'
-  },
+  notificationIcon: { fontSize: '1.4rem' },
+  notificationMessage: { fontSize: '0.95rem', fontWeight: '700', color: '#1e293b' },
   card: {
     width: '100%',
-    maxWidth: '900px',
-    backgroundColor: '#ffffff',
+    maxWidth: '1000px',
+    background: '#ffffff',
     padding: '40px',
-    borderRadius: '20px',
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.1)',
-    border: '1px solid #e2e8f0'
+    borderRadius: '28px',
+    boxShadow: '0 10px 25px rgba(0,0,0,0.05)',
+    border: '1px solid #e2e8f0',
   },
-  header: { textAlign: 'center', marginBottom: '30px' },
-  title: { margin: 0, fontSize: '28px', fontWeight: '800', color: '#0f172a' },
-  subtitle: { margin: '5px 0 0 0', color: '#64748b', fontSize: '15px' },
-  formGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
-    columnGap: '25px',
-    rowGap: '15px'
-  },
+  header: { textAlign: 'center', marginBottom: '28px' },
+  title: { margin: 0, fontSize: '2rem', fontWeight: '800', color: '#1d4ed8' },
+  formGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' },
   inputGroup: { display: 'flex', flexDirection: 'column' },
-  label: {
-    marginBottom: '8px',
-    fontSize: '12px',
-    fontWeight: '700',
-    color: '#334155',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px'
-  },
-  input: {
-    padding: '12px 16px',
-    borderRadius: '10px',
-    border: '1px solid #cbd5e1',
-    fontSize: '14px',
-    backgroundColor: '#fff'
-  },
-  toggleGroup: { display: 'flex', gap: '15px' },
-  toggleBtn: {
-    flex: 1,
-    padding: '12px',
-    border: 'none',
-    borderRadius: '10px',
-    cursor: 'pointer',
-    fontWeight: '700',
-    fontSize: '14px',
-    transition: '0.3s'
-  },
-  button: {
-    width: '100%',
-    padding: '16px',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '10px',
-    fontSize: '16px',
-    fontWeight: '800',
-    cursor: 'pointer',
-    transition: '0.3s'
-  },
-  footerText: {
-    textAlign: 'center',
-    marginTop: '20px',
-    fontSize: '14px',
-    color: '#64748b'
-  },
-  link: {
-    color: '#3b82f6',
-    textDecoration: 'none',
-    fontWeight: '700'
-  }
+  fullWidthGroup: { gridColumn: '1 / -1', display: 'flex', flexDirection: 'column' },
+  label: { marginBottom: '8px', fontSize: '0.75rem', fontWeight: '800', color: '#1d4ed8', textTransform: 'uppercase' },
+  input: { padding: '12px', borderRadius: '12px', border: '1px solid #e0e7ff', fontSize: '0.95rem', fontWeight: '600', outline: 'none' },
+  errorText: { color: '#dc2626', fontSize: '0.7rem', fontWeight: '700', marginTop: '4px' },
+  toggleGroup: { display: 'flex', gap: '16px' },
+  toggleBtn: { flex: 1, padding: '12px', borderRadius: '12px', cursor: 'pointer', fontWeight: '700' },
+  buttonContainer: { marginTop: '28px' },
+  button: { width: '100%', padding: '14px', color: '#fff', border: 'none', borderRadius: '40px', fontSize: '1rem', fontWeight: '800', cursor: 'pointer' },
+  footerText: { textAlign: 'center', marginTop: '20px', fontWeight: '600' },
+  link: { color: '#1d4ed8', textDecoration: 'none', fontWeight: '800' },
 };
